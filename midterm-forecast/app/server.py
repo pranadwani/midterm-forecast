@@ -23,7 +23,7 @@ app = Flask(__name__, static_folder=STATIC_DIR, static_url_path="/static")
 def db():
     if "db" not in g:
         if not os.path.exists(DB_PATH):
-            abort(500, "Database not built yet. Run: python scripts/build_db.py")
+            abort(500, "Database not built yet. Start the app with: python run.py")
         g.db = connect()
     return g.db
 

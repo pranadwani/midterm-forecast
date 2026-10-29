@@ -2,3 +2,8 @@ __pycache__/
 .pytest_cache/
 data/forecast.db
 .venv/
+data/forecast.db.tmp
+# 2026 polls are downloaded with your own FiftyPlusOne API key - don't commit them
+data/raw/senate_general.csv
+data/raw/governor_general.csv
+data/raw/*.part

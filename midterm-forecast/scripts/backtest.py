@@ -24,6 +24,7 @@ sys.path.insert(0, ROOT)
 from app.db import connect  # noqa: E402
 from app.forecast import build_forecasts  # noqa: E402
 from app.model import DEFAULT_PARAMS  # noqa: E402
+from app.updater import build_database, needs_rebuild  # noqa: E402
 
 TRAIN_CYCLES = (2018, 2020)
 TEST_CYCLE = 2022
@@ -87,6 +88,8 @@ def score(races, simple_average=False):
 
 
 def main():
+    if needs_rebuild():                     # only the 2018-2022 polls are needed here
+        build_database()
     conn = connect()
     params = dict(DEFAULT_PARAMS)
 

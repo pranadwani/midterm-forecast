@@ -11,23 +11,34 @@ pollsters to see how the forecast changes.
 
 ```bash
 pip install -r requirements.txt
-python scripts/build_db.py      # load the CSV files into data/forecast.db
-python scripts/backtest.py      # learn error sizes from 2018-2020, test on 2022
 python run.py                   # open http://127.0.0.1:5000
-python -m pytest                # 19 tests
+python -m pytest                # 25 tests
 ```
 
-## Add the 2026 polls
+`run.py` builds the database on first start and refreshes it whenever the data
+changes; there is no separate setup step. To re-learn the model's error sizes
+(2018-2020) and re-test on 2022, run `python scripts/backtest.py`.
+
+## Live 2026 polls
 
 The app ships with real 2018-2022 polls (with actual results) so it works out
-of the box. To forecast 2026:
+of the box. The 2026 polls come from [FiftyPlusOne](https://fiftyplusone.news/downloads),
+which requires an API key (a paid subscription). Set it once and the app
+downloads the latest Senate and governor polls every time it starts:
 
-1. Go to <https://fiftyplusone.news/downloads> and download
-   `senate_general.csv` and `governor_general.csv`.
-2. Put them in `data/raw/`.
-3. Run `python scripts/build_db.py` again and restart the app.
+```bash
+# macOS / Linux
+export FIFTYPLUSONE_API_KEY=your-key
+# Windows PowerShell
+$env:FIFTYPLUSONE_API_KEY = "your-key"
 
-The 2026 option in the Election dropdown will then fill in.
+python run.py
+```
+
+Files are re-downloaded when they are more than 6 hours old. If the download
+fails (no internet, bad key), the app keeps using the last copy it saved. The
+downloaded files are git-ignored, so your licensed data is never committed.
+The 2026 option in the Election dropdown fills in once polls are loaded.
 
 ## How the forecast works
 
@@ -77,7 +88,8 @@ app/
   forecast.py    SQL queries + model -> forecast for every race
   server.py      Flask API (/api/forecast, /api/pollsters, ...)
 static/          the web page: index.html, app.js (D3 map), styles.css
-scripts/         build_db.py, backtest.py
+  updater.py     download the latest 2026 polls and rebuild the database
+scripts/         build_db.py (force a rebuild), backtest.py
 data/raw/        source CSV files
 data/seats.json  Senate seats not on the ballot, tie-breaker, current holders
 tests/           pytest tests for the model, importers and API
