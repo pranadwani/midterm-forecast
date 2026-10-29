@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Midterm Poll Forecast</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>Midterm Poll Forecast</h1>
+      <p class="sub">Win chances for each race, calculated from public polls you choose.</p>
+    </div>
+    <button id="accuracy-btn" class="link-btn" type="button">How accurate is this?</button>
+  </header>
+
+  <main class="layout">
+    <aside class="controls" aria-label="Forecast settings">
+      <fieldset>
+        <legend>Election</legend>
+        <select id="cycle"></select>
+      </fieldset>
+
+      <fieldset>
+        <legend>Race</legend>
+        <div class="seg" role="radiogroup">
+          <label><input type="radio" name="office" value="senate" checked><span>Senate</span></label>
+          <label><input type="radio" name="office" value="governor"><span>Governor</span></label>
+        </div>
+      </fieldset>
+
+      <fieldset class="pollster-box">
+        <legend>Polls to include</legend>
+        <div class="presets">
+          <button type="button" data-preset="all">All</button>
+          <button type="button" data-preset="top5">Top 5 rated</button>
+          <button type="button" data-preset="none">Clear</button>
+        </div>
+        <div id="pollsters" class="pollster-list"></div>
+        <label class="check partisan">
+          <input type="checkbox" id="include-partisan">
+          <span>Include campaign and party-sponsored polls</span>
+        </label>
+      </fieldset>
+    </aside>
+
+    <section class="center">
+      <div id="chamber" class="chamber" hidden></div>
+      <div id="notice" class="notice" hidden></div>
+      <div class="map-wrap">
+        <svg id="map" viewBox="0 0 975 610" role="img" aria-label="US map of race forecasts"></svg>
+        <div id="tooltip" class="tooltip" hidden></div>
+      </div>
+      <div class="legend" aria-hidden="true">
+        <span>Likely Republican</span>
+        <div class="ramp"></div>
+        <span>Likely Democrat</span>
+        <span class="key"><i class="sw norace"></i>No race</span>
+        <span class="key"><i class="sw nodata"></i>No polls selected</span>
+      </div>
+    </section>
+
+    <aside id="detail" class="detail" aria-live="polite">
+      <p class="empty">Select a state to see its forecast and the polls behind it.</p>
+    </aside>
+  </main>
+
+  <dialog id="accuracy">
+    <div class="dialog-body"></div>
+    <form method="dialog"><button class="link-btn">Close</button></form>
+  </dialog>
+
+  <footer class="foot">
+    Poll data: FiveThirtyEight (2018–2022, CC BY 4.0) and FiftyPlusOne (2026).
+    A forecast from public polls only, not a prediction of the outcome.
+  </footer>
+
+  <script src="/static/vendor/d3.min.js"></script>
+  <script src="/static/vendor/topojson-client.min.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

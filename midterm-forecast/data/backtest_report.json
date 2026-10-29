@@ -1,0 +1,68 @@
+{
+  "trained_on": [
+    2018,
+    2020
+  ],
+  "tested_on": 2022,
+  "learned": {
+    "systematic_error": 6.24,
+    "national_error_share": 0.53,
+    "training_races": 108,
+    "training_rmse": 6.64
+  },
+  "model": {
+    "races": 63,
+    "favorite_won_pct": 95.2,
+    "brier_score": 0.0413,
+    "calibration": [
+      {
+        "bucket": "50-60%",
+        "races": 5,
+        "favorite_won_pct": 60.0
+      },
+      {
+        "bucket": "60-80%",
+        "races": 11,
+        "favorite_won_pct": 90.9
+      },
+      {
+        "bucket": "80-95%",
+        "races": 12,
+        "favorite_won_pct": 100.0
+      },
+      {
+        "bucket": "95-100%",
+        "races": 35,
+        "favorite_won_pct": 100.0
+      }
+    ],
+    "avg_margin_error": 4.36
+  },
+  "simple_average": {
+    "favorite_won_pct": 96.8,
+    "avg_margin_error": 4.99
+  },
+  "misses": [
+    {
+      "race": "Nevada senate (general)",
+      "favorite_prob": 0.57,
+      "poll_margin": -1.1,
+      "actual_margin": 0.8,
+      "candidate_a": "Catherine Cortez Masto"
+    },
+    {
+      "race": "Arizona governor (general)",
+      "favorite_prob": 0.65,
+      "poll_margin": -2.5,
+      "actual_margin": 0.7,
+      "candidate_a": "Katie Hobbs"
+    },
+    {
+      "race": "Wisconsin governor (general)",
+      "favorite_prob": 0.51,
+      "poll_margin": -0.14,
+      "actual_margin": 3.4,
+      "candidate_a": "Tony Evers"
+    }
+  ]
+}
