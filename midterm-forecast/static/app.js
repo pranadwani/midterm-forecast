@@ -59,7 +59,7 @@ async function drawMap() {
 
   svg.append("path")
     .datum(topojson.mesh(us, us.objects.states, (a, b) => a !== b))
-    .attr("fill", "none").attr("stroke", "var(--bg)").attr("stroke-width", 1).attr("d", path)
+    .attr("fill", "none").attr("stroke", "var(--line)").attr("stroke-width", 0.75).attr("d", path)
     .style("pointer-events", "none");
 }
 
@@ -72,9 +72,9 @@ function mainRace(abbr) {
 function stateColor(race) {
   const fav = race.prob_a >= 0.5 ? race.cand_a.party : race.cand_b.party;
   const strength = (Math.max(race.prob_a, race.prob_b) - 0.5) * 2;   // 0 = toss-up, 1 = certain
-  const end = getComputedStyle(document.documentElement)
-    .getPropertyValue(fav === "DEM" ? "--dem" : fav === "REP" ? "--rep" : "--other").trim();
-  return d3.interpolateRgb("#e2e5ea", end)(0.15 + 0.85 * strength);
+  const css = getComputedStyle(document.documentElement);
+  const end = css.getPropertyValue(fav === "DEM" ? "--dem" : fav === "REP" ? "--rep" : "--other").trim();
+  return d3.interpolateRgb(css.getPropertyValue("--tossup").trim(), end)(0.1 + 0.9 * strength);
 }
 
 function paintMap() {
@@ -163,19 +163,33 @@ async function loadForecast() {
     `&pollsters=${ids}&include_partisan=${state.includePartisan ? 1 : 0}`);
   if (myId !== requestId) return;        // a newer request already finished
   state.data = data;
+  if (state.selectedState && !data.states_with_races.includes(state.selectedState)
+      && !data.races.some((r) => r.state_abbrev === state.selectedState)) {
+    state.selectedState = null;          // e.g. switched to an office with no race there
+    history.replaceState(null, "", location.pathname);
+  }
   renderNotice();
+  renderUpdated();
   renderChamber();
   paintMap();
   renderDetail();
+}
+
+function renderUpdated() {
+  const el = document.getElementById("updated");
+  if (!state.data.updated) { el.hidden = true; return; }
+  const when = new Date(state.data.updated * 1000).toLocaleString("en-US",
+    { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  el.textContent = `Polls updated ${when}`;
+  el.hidden = false;
 }
 
 function renderNotice() {
   const el = document.getElementById("notice");
   const { races } = state.data;
   if (!state.pollsters.length) {
-    el.innerHTML = `There are no ${state.office} polls loaded for ${state.cycle} yet. Download
-      <code>${state.office}_general.csv</code> from FiftyPlusOne into <code>data/raw/</code>,
-      then run <code>python scripts/build_db.py</code>. See the README for details.`;
+    el.textContent = `No ${state.office} polls are loaded for ${state.cycle} yet. ` +
+      "They download automatically when the app starts, so check back shortly.";
     el.hidden = false;
   } else if (!races.length) {
     el.textContent = "None of the selected pollsters surveyed these races. Select more pollsters to see a forecast.";
@@ -210,25 +224,64 @@ function selectState(abbr) {
   const hasRace = (state.data?.states_with_races || []).includes(abbr) || mainRace(abbr);
   if (!hasRace) return;
   state.selectedState = abbr;
+  history.replaceState(null, "", `#${abbr}`);     // shareable link to this state
   paintMap();
   renderDetail();
+}
+
+function clearSelection() {
+  state.selectedState = null;
+  history.replaceState(null, "", location.pathname);
+  paintMap();
+  renderDetail();
+}
+
+// Shown when no state is selected: the most competitive races, one click away.
+function renderOverview(el) {
+  const races = [...state.data.races]
+    .sort((x, y) => Math.abs(x.prob_a - 0.5) - Math.abs(y.prob_a - 0.5))
+    .slice(0, 6);
+  if (!races.length) {
+    el.innerHTML = `<p class="empty">Select a state to see its forecast and the polls behind it.</p>`;
+    return;
+  }
+  const office = state.office === "senate" ? "Senate" : "governor";
+  el.innerHTML = `
+    <h2>Closest ${office} races</h2>
+    <p class="meta">Click a race, or any colored state on the map, to see the polls behind it.</p>
+    <ul class="close-list">${races.map((r) => {
+      const a = partyInfo(r.cand_a.party), b = partyInfo(r.cand_b.party);
+      const fav = r.prob_a >= 0.5 ? r.cand_a : r.cand_b;
+      const favP = Math.max(r.prob_a, r.prob_b);
+      const stage = r.stage === "special" ? " (special)" : r.stage === "runoff" ? " (runoff)" : "";
+      return `<li><button type="button" data-state="${r.state_abbrev}">
+        <span class="close-top"><strong>${escapeHtml(r.state)}${stage}</strong>
+          <span>${escapeHtml(lastName(fav.name))} ${pct(favP)}</span></span>
+        <span class="prob-bar"><span style="flex:${r.prob_a};background:${a.color}"></span><span style="flex:${r.prob_b};background:${b.color}"></span></span>
+        <span class="close-names"><span>${escapeHtml(r.cand_a.name)} (${a.label})</span><span>${escapeHtml(r.cand_b.name)} (${b.label})</span></span>
+      </button></li>`;
+    }).join("")}</ul>`;
+  el.querySelectorAll("[data-state]").forEach((btn) =>
+    btn.addEventListener("click", () => selectState(btn.dataset.state)));
 }
 
 function renderDetail() {
   const el = document.getElementById("detail");
   const abbr = state.selectedState;
-  if (!abbr) return;
+  if (!abbr) { renderOverview(el); return; }
   const feature = statesFeatures.find((f) => f.abbr === abbr);
   const races = state.data.races.filter((r) => r.state_abbrev === abbr);
   const title = feature ? feature.properties.name : abbr;
   const office = state.office === "senate" ? "Senate" : "Governor";
+  const back = `<button type="button" class="back-btn">← Closest races</button>`;
   if (!races.length) {
-    el.innerHTML = `<h2>${title}</h2><p class="meta">${state.cycle} ${office}</p>
+    el.innerHTML = `${back}<h2>${title}</h2><p class="meta">${state.cycle} ${office}</p>
       <p class="empty">None of the selected pollsters surveyed this race. Select more pollsters to include it.</p>`;
-    return;
+  } else {
+    el.innerHTML = `${back}<h2>${title}</h2>` + races.map(raceHtml).join("");
+    races.forEach((r) => drawDistribution(r));
   }
-  el.innerHTML = `<h2>${title}</h2>` + races.map(raceHtml).join("");
-  races.forEach((r) => drawDistribution(r));
+  el.querySelector(".back-btn").addEventListener("click", clearSelection);
 }
 
 function raceHtml(r) {
@@ -241,7 +294,7 @@ function raceHtml(r) {
       ${r.actual.favorite_won ? "The forecast favorite won." : "The forecast favorite lost."}</p>` : "";
   return `
   <div class="race">
-    <p class="meta">${state.cycle} ${office}${stage} · as of ${r.as_of}</p>
+    <p class="meta">${state.cycle} ${office}${stage} · as of ${shortDate(r.as_of)}</p>
     <div class="cand"><span class="name" style="color:${a.color}">${escapeHtml(r.cand_a.name)} (${a.label})</span><span class="pct">${pct(r.prob_a)}</span></div>
     <div class="cand"><span class="name" style="color:${b.color}">${escapeHtml(r.cand_b.name)} (${b.label})</span><span class="pct">${pct(r.prob_b)}</span></div>
     <div class="prob-bar"><div style="flex:${r.prob_a};background:${a.color}"></div><div style="flex:${r.prob_b};background:${b.color}"></div></div>
@@ -354,8 +407,7 @@ async function init() {
   select.addEventListener("change", async () => {
     state.cycle = Number(select.value);
     state.selectedState = null;
-    document.getElementById("detail").innerHTML =
-      `<p class="empty">Select a state to see its forecast and the polls behind it.</p>`;
+    history.replaceState(null, "", location.pathname);
     await loadPollsters();
     await loadForecast();
   });
@@ -375,6 +427,7 @@ async function init() {
 
   await loadPollsters();
   await loadForecast();
+  selectState(location.hash.slice(1).toUpperCase());   // open a linked state, e.g. /#IA
 }
 
 init().catch((err) => {

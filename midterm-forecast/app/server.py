@@ -77,6 +77,7 @@ def api_forecast():
     chamber = senate_simulation(races, cycle) if office == "senate" else None
     return jsonify({
         "cycle": cycle, "office": office,
+        "updated": int(os.path.getmtime(DB_PATH)),     # when the polls were last loaded
         "states_with_races": states_with_races(db(), cycle, office),
         "races": races,
         "chamber": chamber,

@@ -7,8 +7,9 @@
   --dem: #2a64b0;
   --rep: #bf3b33;
   --other: #7a5aa6;
-  --norace: #d5dbe2;
-  --nodata: #b9c2cc;
+  --norace: #f4f6f8;
+  --nodata: #c3cbd4;
+  --tossup: #cbc2dc;
   --focus: #e0a100;
   font-family: "Public Sans", system-ui, sans-serif;
   color: var(--ink);
@@ -17,7 +18,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #131a23; --panel: #1b2430; --ink: #e8edf3; --muted: #9aa6b5; --line: #2e3a49;
-    --dem: #5a92dc; --rep: #e06a60; --other: #a88bd2; --norace: #263241; --nodata: #3a4757;
+    --dem: #5a92dc; --rep: #e06a60; --other: #a88bd2; --norace: #1f2935; --nodata: #3a4757; --tossup: #5b5373;
   }
 }
 * { box-sizing: border-box; }
@@ -27,6 +28,9 @@ body { margin: 0; background: var(--bg); line-height: 1.45; }
   padding: 22px 28px 14px; border-bottom: 1px solid var(--line); }
 h1 { margin: 0; font-size: 1.75rem; font-weight: 800; letter-spacing: -0.02em; }
 .sub { margin: 2px 0 0; color: var(--muted); }
+.updated[hidden] { display: none; }
+.updated { margin: 6px 0 0; font-size: 0.8rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.updated::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #2f9e5b; }
 
 .link-btn { background: none; border: 0; color: var(--dem); font: inherit; font-weight: 600;
   cursor: pointer; padding: 6px 0; text-decoration: underline; text-underline-offset: 3px; }
@@ -62,7 +66,7 @@ select { width: 100%; font: inherit; padding: 7px 8px; border: 1px solid var(--l
 .center { min-width: 0; }
 .map-wrap { position: relative; }
 #map { width: 100%; height: auto; display: block; }
-.state { stroke: var(--bg); stroke-width: 1; cursor: pointer; transition: opacity .15s; }
+.state { stroke: var(--line); stroke-width: 0.75; cursor: pointer; transition: opacity .15s; }
 .state.norace { fill: var(--norace); cursor: default; }
 .state.nodata { fill: url(#hatch); }
 .state:hover:not(.norace) { opacity: .82; }
@@ -75,10 +79,11 @@ select { width: 100%; font: inherit; padding: 7px 8px; border: 1px solid var(--l
 .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
   font-size: 0.8rem; color: var(--muted); margin-top: 8px; }
 .ramp { width: 160px; height: 10px; border-radius: 2px;
-  background: linear-gradient(90deg, var(--rep), #e9c9c6 45%, #e2e5ea 50%, #c4d4ea 55%, var(--dem)); }
+  background: linear-gradient(90deg, var(--rep), var(--tossup) 50%, var(--dem)); }
 .key { display: inline-flex; align-items: center; gap: 5px; }
 .sw { width: 14px; height: 10px; border-radius: 2px; display: inline-block; }
-.sw.norace { background: var(--norace); }
+.sw.norace { background: var(--norace); border: 1px solid var(--line); }
+.sw.tossup { background: var(--tossup); }
 .sw.nodata { background: repeating-linear-gradient(45deg, var(--nodata) 0 2px, var(--norace) 2px 5px); }
 
 .chamber { margin-bottom: 14px; }
@@ -98,6 +103,19 @@ select { width: 100%; font: inherit; padding: 7px 8px; border: 1px solid var(--l
 .detail { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px;
   position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; }
 .detail .empty { color: var(--muted); margin: 0; }
+.back-btn { background: none; border: 0; padding: 0; margin: 0 0 8px; font: inherit; font-size: 0.82rem;
+  font-weight: 600; color: var(--muted); cursor: pointer; }
+.back-btn:hover { color: var(--ink); }
+.close-list { list-style: none; margin: 0; padding: 0; }
+.close-list li + li { margin-top: 6px; }
+.close-list button { display: block; width: 100%; text-align: left; font: inherit; color: var(--ink);
+  background: var(--bg); border: 1px solid transparent; border-radius: 6px; padding: 9px 10px; cursor: pointer; }
+.close-list button:hover { border-color: var(--line); }
+.close-list button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.close-top, .close-names { display: flex; justify-content: space-between; gap: 8px; }
+.close-top span { font-weight: 600; }
+.close-list .prob-bar { margin: 6px 0 4px; height: 6px; }
+.close-names { font-size: 0.75rem; color: var(--muted); }
 .detail h2 { margin: 0; font-size: 1.35rem; font-weight: 800; letter-spacing: -0.01em; }
 .detail .meta { color: var(--muted); font-size: 0.84rem; margin: 2px 0 14px; }
 .race + .race { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 16px; }

@@ -14,6 +14,7 @@
     <div>
       <h1>Midterm Poll Forecast</h1>
       <p class="sub">Win chances for each race, calculated from public polls you choose.</p>
+      <p id="updated" class="updated" hidden></p>
     </div>
     <button id="accuracy-btn" class="link-btn" type="button">How accurate is this?</button>
   </header>
@@ -59,13 +60,13 @@
         <span>Likely Republican</span>
         <div class="ramp"></div>
         <span>Likely Democrat</span>
+        <span class="key"><i class="sw tossup"></i>Toss-up</span>
         <span class="key"><i class="sw norace"></i>No race</span>
         <span class="key"><i class="sw nodata"></i>No polls selected</span>
       </div>
     </section>
 
     <aside id="detail" class="detail" aria-live="polite">
-      <p class="empty">Select a state to see its forecast and the polls behind it.</p>
     </aside>
   </main>
 
