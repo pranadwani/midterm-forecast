@@ -4,13 +4,14 @@ The FiftyPlusOne test uses a tiny made-up file (fictional candidates and
 pollsters) written in the same column format as the real download.
 """
 import csv
+import json
 import os
 
 import pytest
 
 from app import db as dbmod
 from app.forecast import build_forecasts
-from app.importers import import_fiftyplusone_polls, normalize_name
+from app.importers import import_fiftyplusone_polls, import_votehub_polls, normalize_name
 
 FIELDS = ["poll_id", "question_id", "pollster", "state", "end_date", "sample_size", "population",
           "internal", "partisan", "race_id", "cycle", "office_type", "seat_name", "election_date",
@@ -92,6 +93,53 @@ def test_forecast_filters_by_pollster(conn, tmp_path):
     assert only_one[0]["margin"] == pytest.approx(10)
     both = build_forecasts(conn, 2026, "senate")
     assert abs(both[0]["margin"]) < 10
+
+
+def vh_poll(pid, end, answers, subject="2026 Ohio", poll_type="us-senator", **extra):
+    base = {"id": pid, "poll_type": poll_type, "subject": subject, "end_date": end,
+            "pollster": "Test Poll Co", "sample_size": 800, "population": "lv",
+            "internal": False, "partisan": None,
+            "answers": [{"choice": name, "pct": pct} for name, pct in answers]}
+    base.update(extra)
+    return base
+
+
+VH_PARTIES = {"parties": {"Alex Rivera": "DEM", "Jordan Blake": "REP", "Casey Early": "DEM",
+                          "Sam Minor": "LIB"},
+              "aliases": {"Alex Rivra": "Alex Rivera"}}
+
+
+def test_votehub_uses_recent_nominees(conn, tmp_path):
+    path = tmp_path / "votehub_polls.json"
+    path.write_text(json.dumps([
+        # before the primary: a different Democrat was polled
+        vh_poll("1", "2026-03-01", [("Casey Early", 44), ("Jordan Blake", 46)]),
+        # after it: the nominee, with a minor candidate listed in every poll
+        vh_poll("2", "2026-10-01", [("Jordan Blake", 45), ("Alex Rivera", 47), ("Sam Minor", 3)]),
+        vh_poll("3", "2026-10-20", [("Alex Rivra", 48), ("Jordan Blake", 44), ("Sam Minor", 2)]),
+        vh_poll("4", "2026-10-21", [("Jordan Blake", 49), ("Sam Minor", 4)]),
+        # primary poll - must be skipped
+        vh_poll("5", "2026-02-01", [("Alex Rivera", 50), ("Casey Early", 40)],
+                subject="2026 Ohio Democratic"),
+    ]))
+    n, unknown = import_votehub_polls(conn, str(path), VH_PARTIES, special_states={"OH"})
+    assert (n, unknown) == (2, [])
+    polls = conn.execute("SELECT * FROM polls ORDER BY source_id").fetchall()
+    assert [p["source_id"] for p in polls] == ["2", "3"]
+    assert all((p["cand_a_name"], p["cand_a_party"]) == ("Alex Rivera", "DEM") for p in polls)
+    assert [p["cand_a_pct"] - p["cand_b_pct"] for p in polls] == [2, 4]
+    race = conn.execute("SELECT * FROM races").fetchone()
+    assert (race["state_abbrev"], race["office"], race["stage"]) == ("OH", "senate", "special")
+
+
+def test_votehub_skips_race_with_unknown_party(conn, tmp_path):
+    path = tmp_path / "votehub_polls.json"
+    path.write_text(json.dumps([
+        vh_poll("1", "2026-10-01", [("Alex Rivera", 47), ("Pat Newcomer", 45)],
+                subject="2026 Iowa", poll_type="governor"),
+    ]))
+    assert import_votehub_polls(conn, str(path), VH_PARTIES) == (0, ["Iowa governor: Pat Newcomer"])
+    assert conn.execute("SELECT COUNT(*) FROM races").fetchone()[0] == 0
 
 
 def test_pollster_names_match_loosely():

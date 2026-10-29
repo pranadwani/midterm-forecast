@@ -7,3 +7,4 @@ data/forecast.db.tmp
 data/raw/senate_general.csv
 data/raw/governor_general.csv
 data/raw/*.part
+data/raw/votehub_polls.json

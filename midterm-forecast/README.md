@@ -12,7 +12,7 @@ pollsters to see how the forecast changes.
 ```bash
 pip install -r requirements.txt
 python run.py                   # open http://127.0.0.1:5000
-python -m pytest                # 25 tests
+python -m pytest                # 29 tests
 ```
 
 `run.py` builds the database on first start and refreshes it whenever the data
@@ -21,10 +21,23 @@ changes; there is no separate setup step. To re-learn the model's error sizes
 
 ## Live 2026 polls
 
-The app ships with real 2018-2022 polls (with actual results) so it works out
-of the box. The 2026 polls come from [FiftyPlusOne](https://fiftyplusone.news/downloads),
-which requires an API key (a paid subscription). Set it once and the app
-downloads the latest Senate and governor polls every time it starts:
+The app ships with real 2018-2022 polls (with actual results) and downloads
+the 2026 polls by itself every time it starts. Files are re-downloaded when
+they are more than 6 hours old; if a download fails (no internet, site down),
+the app keeps using the last copy it saved. Downloaded files are git-ignored.
+
+**Free, no setup:** by default the polls come from the
+[VoteHub](https://votehub.com/polls/) API. VoteHub doesn't say which party
+each candidate belongs to, so that comes from `data/candidates_2026.json`.
+Each race's matchup is the two candidates with the most support in its last
+60 days of polls, so polls from before the primaries don't override the
+nominees. If startup prints `skipped <race> - party unknown`, add that
+candidate to the file.
+
+**FiftyPlusOne (optional, paid):** if you have a
+[FiftyPlusOne](https://fiftyplusone.news/downloads) API key, set it and the
+app uses their files instead. They include parties, so no candidate list is
+needed:
 
 ```bash
 # macOS / Linux
@@ -35,10 +48,27 @@ $env:FIFTYPLUSONE_API_KEY = "your-key"
 python run.py
 ```
 
-Files are re-downloaded when they are more than 6 hours old. If the download
-fails (no internet, bad key), the app keeps using the last copy it saved. The
-downloaded files are git-ignored, so your licensed data is never committed.
-The 2026 option in the Election dropdown fills in once polls are loaded.
+## Deploy on Railway
+
+1. Create a Railway project from this GitHub repo.
+2. In the service's **Settings**, set **Root Directory** to `midterm-forecast`
+   (the folder holding `requirements.txt`).
+3. Optional: under **Variables**, add `FIFTYPLUSONE_API_KEY`. See the licensing
+   note below first.
+4. Under **Networking**, click **Generate Domain**.
+
+Railway installs `requirements.txt` and starts the app from the `Procfile`
+using gunicorn ([wsgi.py](wsgi.py)), not Flask's development server. The
+polls are downloaded before the server starts taking requests, so the first
+deploy takes a little longer. They are then refreshed every 6 hours while it
+runs. Railway's disk is wiped on each deploy, which is fine because
+everything is downloaded again on startup.
+
+**Licensing:** a public website counts as publishing the data. FiftyPlusOne's
+Standard and Premium plans are for personal or nonprofit use, and only the
+Enterprise plan includes a license to publish, so don't set the key on a public
+deployment without checking with them. VoteHub data is reported to be
+CC BY 4.0, which means crediting them; confirm on their site.
 
 ## How the forecast works
 
@@ -83,15 +113,18 @@ the 2022 results were known, so the 2022 test is slightly optimistic.
 ```
 app/
   db.py          SQLite schema (pollsters, races, polls) and connection
-  importers.py   load 538 and FiftyPlusOne CSV files into the database
+  importers.py   load 538, FiftyPlusOne and VoteHub polls into the database
   model.py       the math: poll weights, averages, win probability, simulation
   forecast.py    SQL queries + model -> forecast for every race
   server.py      Flask API (/api/forecast, /api/pollsters, ...)
+wsgi.py          production entry point (gunicorn, used on Railway)
+Procfile         how Railway starts the app
 static/          the web page: index.html, app.js (D3 map), styles.css
   updater.py     download the latest 2026 polls and rebuild the database
 scripts/         build_db.py (force a rebuild), backtest.py
 data/raw/        source CSV files
 data/seats.json  Senate seats not on the ballot, tie-breaker, current holders
+data/candidates_2026.json  party of each 2026 candidate (for VoteHub polls)
 tests/           pytest tests for the model, importers and API
 ```
 
@@ -100,6 +133,8 @@ tests/           pytest tests for the model, importers and API
 - **FiveThirtyEight** pollster ratings and historical polls,
   <https://github.com/fivethirtyeight/data/tree/master/pollster-ratings>,
   licensed CC BY 4.0. Trimmed to 2018-2022 Senate and governor races.
+- **VoteHub** 2026 polls, <https://votehub.com/polls/> (free API; reported to be
+  CC BY 4.0 - confirm on their site before publishing anything built on it).
 - **FiftyPlusOne** 2026 poll files, <https://fiftyplusone.news/readme>
   (check their terms before publishing anything built on their data).
 

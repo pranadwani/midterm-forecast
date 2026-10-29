@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS races (
 -- the race's two main candidates ("A" and "B"), so all polls of a race line up.
 CREATE TABLE IF NOT EXISTS polls (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    source        TEXT NOT NULL,       -- '538' or 'fiftyplusone'
+    source        TEXT NOT NULL,       -- '538', 'fiftyplusone' or 'votehub'
     source_id     TEXT NOT NULL,       -- question id in the source file
     race_id       TEXT NOT NULL REFERENCES races(id),
     pollster_id   INTEGER NOT NULL REFERENCES pollsters(id),

@@ -1,7 +1,8 @@
 """Start the app:  python run.py   then open http://127.0.0.1:5000
 
-On startup the latest 2026 polls are downloaded (if FIFTYPLUSONE_API_KEY is
-set) and the database is built or refreshed as needed.
+On startup the latest 2026 polls are downloaded (from FiftyPlusOne if
+FIFTYPLUSONE_API_KEY is set, otherwise free from VoteHub) and the database is
+built or refreshed as needed.
 """
 import os
 

@@ -1,14 +1,18 @@
-"""Load poll CSV files into the SQLite database.
+"""Load poll files into the SQLite database.
 
-Two formats are supported:
+Three formats are supported:
   * 538 historical polls (raw_polls.csv) - 2018-2022 races WITH actual results,
     used to test ("backtest") the model.
   * FiftyPlusOne poll files (senate_general.csv / governor_general.csv) - the
     current 2026 polls. Each row there is ONE candidate's number in ONE poll
     question, so rows are grouped back into head-to-head polls here.
+  * VoteHub polls (votehub_polls.json) - free 2026 polls, used when there are
+    no FiftyPlusOne files. Candidate parties come from data/candidates_2026.json.
 """
 import csv
+import json
 from collections import Counter, defaultdict
+from datetime import date
 
 from .db import get_or_create_pollster
 
@@ -192,6 +196,79 @@ def import_fiftyplusone_polls(conn, path: str, cycle: int = 2026) -> int:
         count += cur.rowcount
     conn.commit()
     return count
+
+
+# ---------------------------------------------------------------- VoteHub (2026, free)
+VOTEHUB_OFFICES = {"us-senator": "senate", "governor": "governor"}
+RECENT_DAYS = 60          # the race's matchup = the strongest candidates in its last 60 days
+
+
+def import_votehub_polls(conn, path: str, candidates: dict, special_states=(), cycle: int = 2026):
+    """Import polls from the free VoteHub API (https://api.votehub.com/polls).
+
+    VoteHub doesn't give candidate parties, so they come from `candidates`
+    ({"parties": {name: party}, "aliases": {misspelling: name}}). Returns
+    (polls imported, races skipped because a candidate's party is unknown).
+    """
+    with open(path, encoding="utf-8") as f:
+        polls = json.load(f)
+    parties, aliases = candidates.get("parties", {}), candidates.get("aliases", {})
+
+    # Subject is "2026 Ohio" for a general election, "2026 Texas Democratic" for a primary.
+    races = defaultdict(list)
+    for p in polls:
+        office = VOTEHUB_OFFICES.get(p.get("poll_type"))
+        year, _, state = (p.get("subject") or "").partition(" ")
+        if office and year == str(cycle) and state in STATE_ABBREV and p.get("end_date"):
+            answers = {aliases.get(a["choice"], a["choice"]): _float(a.get("pct"))
+                       for a in p.get("answers", []) if _float(a.get("pct")) is not None}
+            races[(office, state)].append((p, answers))
+
+    count, unknown = 0, []
+    for (office, state), race_polls in races.items():
+        # Early polls test matchups from before the primaries; the nominees are
+        # the two candidates with the most total support in the race's recent
+        # polls (support, not appearances, so minor candidates listed in every
+        # poll don't outrank a major one left out of a single poll).
+        newest = max(date.fromisoformat(p["end_date"]) for p, _ in race_polls)
+        support = Counter()
+        for p, answers in race_polls:
+            if (newest - date.fromisoformat(p["end_date"])).days <= RECENT_DAYS:
+                support.update(answers)
+        main = [name for name, _ in support.most_common(2)]
+        if len(main) < 2:
+            continue
+        if any(name not in parties for name in main):
+            unknown.append(f"{state} {office}: " + ", ".join(n for n in main if n not in parties))
+            continue
+        a, b = sorted(main, key=lambda n: party_rank(parties[n]))
+
+        abbr = STATE_ABBREV[state]
+        stage = "special" if office == "senate" and abbr in special_states else "general"
+        race_id = f"vh_{cycle}_{office}_{abbr}"
+        conn.execute(
+            """INSERT OR IGNORE INTO races
+               (id, cycle, office, state, state_abbrev, stage, election_date)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (race_id, cycle, office, state, abbr, stage, f"{cycle}-11-03"),
+        )
+        for p, answers in race_polls:
+            if a not in answers or b not in answers:
+                continue                              # poll didn't ask about both main candidates
+            cur = conn.execute(
+                """INSERT OR IGNORE INTO polls
+                   (source, source_id, race_id, pollster_id, end_date, sample_size, population,
+                    internal, partisan, cand_a_name, cand_a_party, cand_a_pct,
+                    cand_b_name, cand_b_party, cand_b_pct)
+                   VALUES ('votehub', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (p["id"], race_id, match_pollster(conn, p["pollster"]), p["end_date"][:10],
+                 _int(p.get("sample_size")), (p.get("population") or "").lower() or None,
+                 1 if p.get("internal") else 0, p.get("partisan") or None,
+                 a, parties[a], answers[a], b, parties[b], answers[b]),
+            )
+            count += cur.rowcount
+    conn.commit()
+    return count, sorted(unknown)
 
 
 def match_pollster(conn, name: str) -> int:

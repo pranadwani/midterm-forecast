@@ -1,6 +1,7 @@
-"""Tests for downloading the latest polls. The FiftyPlusOne API is faked, so
-these run offline and without an API key."""
+"""Tests for downloading the latest polls. The FiftyPlusOne and VoteHub APIs
+are faked, so these run offline and without an API key."""
 import io
+import json
 import os
 import time
 import urllib.error
@@ -64,13 +65,28 @@ def test_unexpected_response_is_not_saved(monkeypatch, tmp_path):
     assert os.listdir(tmp_path) == []
 
 
+def test_votehub_keeps_only_senate_and_governor(monkeypatch, tmp_path):
+    polls = [{"id": "1", "poll_type": "governor"}, {"id": "2", "poll_type": "approval"},
+             {"id": "3", "poll_type": "us-senator"}]
+    fake_api(monkeypatch, body=json.dumps(polls).encode())
+    assert updater.fetch_votehub(str(tmp_path))
+    saved = json.loads((tmp_path / updater.VOTEHUB_FILE).read_text())
+    assert [p["id"] for p in saved] == ["1", "3"]
+
+
+def test_votehub_bad_response_is_not_saved(monkeypatch, tmp_path):
+    fake_api(monkeypatch, body=b"<html>Service unavailable</html>")
+    assert not updater.fetch_votehub(str(tmp_path))
+    assert os.listdir(tmp_path) == []
+
+
 def test_rebuild_when_raw_file_is_newer(tmp_path):
     db = tmp_path / "forecast.db"
-    assert updater.needs_rebuild(str(tmp_path), str(db))
+    assert updater.needs_rebuild(str(tmp_path), str(db), "")
     db.write_bytes(b"")
     os.utime(db, (1000, 1000))
     (tmp_path / "senate_general.csv").write_bytes(GOOD_CSV)
-    assert updater.needs_rebuild(str(tmp_path), str(db))
+    assert updater.needs_rebuild(str(tmp_path), str(db), "")
     os.utime(db, None)
     os.utime(tmp_path / "senate_general.csv", (1000, 1000))
-    assert not updater.needs_rebuild(str(tmp_path), str(db))
+    assert not updater.needs_rebuild(str(tmp_path), str(db), "")
